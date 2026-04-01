@@ -45,7 +45,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-region: ap-southeast-1
           role-session-name: GithubActionsSession
 
       - name: "Login to Amazon ECR Private"
@@ -92,7 +92,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-region: ap-southeast-1
           role-session-name: GithubActionsSession
 
       - name: "Login to Amazon ECR Private"
