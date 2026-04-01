@@ -2,7 +2,9 @@ FROM node:20-alpine AS build
 WORKDIR /usr/src/app
 COPY --chown=node:node package*.json ./
 COPY --chown=node:node . .
-RUN yarn install --frozen-lockfile
+RUN apk add --no-cache python3 make g++ && \
+    yarn install --frozen-lockfile && \
+    apk del python3 make g++
 RUN yarn build
 USER node
 

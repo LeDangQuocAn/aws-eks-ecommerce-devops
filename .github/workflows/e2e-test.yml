@@ -21,14 +21,14 @@ jobs:
         uses: ./.github/actions/setup-env
       - name: Compose up
         run: |
-          yarn nx compose:up ui
+          DB_PASSWORD='test123' yarn nx compose:up ui
           sleep 60
       - name: Test
         run: |
           CYPRESS_BASE_URL='http://localhost:8888' yarn nx execute e2e
       - name: Compose down
         run: |
-          yarn nx compose:down ui
+          DB_PASSWORD='test123' yarn nx compose:down ui
 
   docker-multi:
     name: Docker E2E Tests (Multi)
