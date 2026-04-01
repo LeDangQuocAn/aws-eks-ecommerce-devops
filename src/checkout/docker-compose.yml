@@ -11,6 +11,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
     environment:
       - RETAIL_CHECKOUT_PERSISTENCE_PROVIDER=redis
       - RETAIL_CHECKOUT_PERSISTENCE_REDIS_URL=redis://checkout-redis:6379
@@ -21,6 +23,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 3
+      start_period: 15s
     depends_on:
       checkout-redis:
         condition: service_healthy

@@ -1,14 +1,14 @@
-name: Publish Artifacts
+name: Deploy to Environment
 
 on:
   workflow_call:
     inputs:
       version:
         type: string
-        default: "-"
+        required: true
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 jobs:
@@ -24,9 +24,19 @@ jobs:
           - os: ubuntu-22.04-arm
             arch: arm64
     steps:
+      - name: Resolve version
+        id: vars
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.version }}
+          ref: ${{ steps.vars.outputs.version }}
       - name: "Setup Docker"
         uses: ./.github/actions/setup-docker
       - name: "Setup Env"
@@ -38,15 +48,13 @@ jobs:
           aws-region: us-east-1
           role-session-name: GithubActionsSession
 
-      - name: "Login to Amazon ECR Public"
-        id: login-ecr-public
+      - name: "Login to Amazon ECR Private"
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-        with:
-          registry-type: public
 
       - name: Build
         env:
-          TAG_NAME: ${{ inputs.version }}
+          TAG_NAME: ${{ steps.vars.outputs.version }}
           TARGET_ARCH: ${{ matrix.arch }}
           AWS_ECR_REPOSITORY: ${{ secrets.AWS_ECR_REPOSITORY }}
         run: |
@@ -65,9 +73,19 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve version
+        id: vars
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.version }}
+          ref: ${{ steps.vars.outputs.version }}
       - name: "Setup Env"
         uses: ./.github/actions/setup-env
       - name: "Get AWS credentials"
@@ -77,16 +95,13 @@ jobs:
           aws-region: us-east-1
           role-session-name: GithubActionsSession
 
-      - name: "Login to Amazon ECR Public"
-        id: login-ecr-public
+      - name: "Login to Amazon ECR Private"
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-        with:
-          registry-type: public
 
-      - name: Push manifests
+      - name: Push manifests and helm charts
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ inputs.version }}
+          TAG_NAME: ${{ steps.vars.outputs.version }}
           AWS_ECR_REPOSITORY: ${{ secrets.AWS_ECR_REPOSITORY }}
         run: |
           export IMAGE_TAG=${TAG_NAME#v}
@@ -95,15 +110,3 @@ jobs:
           yarn nx manifest load-generator --args="--repository=${AWS_ECR_REPOSITORY}/retail-store-sample-utils,--tag=load-gen.${IMAGE_TAG}"
 
           yarn nx run-many -t helm --projects=tag:service --remote oci://${AWS_ECR_REPOSITORY} --push
-
-          bash scripts/compose-dist.sh
-
-          gh release upload ${TAG_NAME} ./dist/docker-compose/docker-compose.yaml --clobber
-
-          bash scripts/kubernetes-dist.sh
-
-          gh release upload ${TAG_NAME} ./dist/kubernetes/kubernetes.yaml --clobber
-
-          zip -j /tmp/sample-images.zip samples/images/*
-
-          gh release upload ${TAG_NAME} /tmp/sample-images.zip --clobber
