@@ -11,6 +11,9 @@ USER node
 FROM node:20-alpine AS runtime
 
 WORKDIR /app
+
+RUN apk add --no-cache curl
+
 USER node
 
 COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules

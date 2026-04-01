@@ -26,8 +26,8 @@ jobs:
       - name: Debug docker on failure
         if: failure()
         run: |
-          docker compose -f src/app/docker-compose.yml ps
-          docker compose -f src/app/docker-compose.yml logs --no-color --tail=300 checkout 2>&1 || true
+          DB_PASSWORD='test123' docker compose -f src/app/docker-compose.yml ps
+          DB_PASSWORD='test123' docker compose -f src/app/docker-compose.yml logs --no-color --tail=300 checkout 2>&1 || true
       - name: Test
         run: |
           CYPRESS_BASE_URL='http://localhost:8888' yarn nx execute e2e
@@ -49,8 +49,8 @@ jobs:
       - name: Debug docker on failure
         if: failure()
         run: |
-          docker compose -f src/app/docker-compose.yml ps
-          docker compose -f src/app/docker-compose.yml logs --no-color --tail=300 checkout 2>&1 || true
+          DB_PASSWORD='test123' docker compose -f src/app/docker-compose.yml ps
+          DB_PASSWORD='test123' docker compose -f src/app/docker-compose.yml logs --no-color --tail=300 checkout 2>&1 || true
       - name: Test
         run: |
           CYPRESS_BASE_URL='http://localhost:8888' yarn nx execute e2e
