@@ -1,11 +1,16 @@
-name: Deploy to Environment
+name: CI
 
 on:
-  workflow_call:
+  push:
+    # Because this ci is still in testing phase, we will only trigger it on feat/* branches. We can remove this filter once the tests are stable
+    branches:
+      - "main"
+  workflow_dispatch:
     inputs:
       version:
-        type: string
-        required: true
+        description: "Version, tag, or SHA"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -21,13 +26,11 @@ jobs:
         include:
           - os: ubuntu-22.04
             arch: amd64
-          - os: ubuntu-22.04-arm
-            arch: arm64
     steps:
       - name: Resolve version
         id: vars
         env:
-          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
           if [ -n "$INPUT_VERSION" ]; then
             echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
@@ -76,7 +79,7 @@ jobs:
       - name: Resolve version
         id: vars
         env:
-          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ github.event.inputs.version || '' }}
         run: |
           if [ -n "$INPUT_VERSION" ]; then
             echo "version=$INPUT_VERSION" >> "$GITHUB_OUTPUT"

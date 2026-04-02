@@ -1,23 +1,75 @@
-name: E2E Test
+name: PR Validation
 
 on:
+  #for testing
   push:
     branches:
       - "feat/*"
   pull_request:
     branches:
       - main
+    types:
+      - opened
+      - edited
+      - synchronize
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  pull-requests: read
 
 jobs:
+  semanticpr:
+    name: Semantic Pull Request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  hooks:
+    name: Hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Env
+        uses: ./.github/actions/setup-env
+      - name: Lint
+        run: |
+          yarn lint:pr
+
+  test:
+    name: Project tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Env
+        uses: ./.github/actions/setup-env
+      - name: Build
+        run: |
+          yarn nx affected --targets=build --base origin/main --parallel 1
+      - name: Unit and integration tests
+        run: |
+          yarn nx affected --targets=lint,test:integration,test --base origin/main
+      - name: Containers
+        run: |
+          yarn nx affected --targets=container --exclude='*,!tag:container' --base origin/main
+
   docker:
     name: Docker E2E Tests
     runs-on: ubuntu-latest
+    needs:
+      - semanticpr
+      - hooks
+      - test
     steps:
       - uses: actions/checkout@v4
-      - name: "Setup Env"
+      - name: Setup Env
         uses: ./.github/actions/setup-env
       - name: Compose up
         run: |
@@ -38,9 +90,13 @@ jobs:
   docker-multi:
     name: Docker E2E Tests (Multi)
     runs-on: ubuntu-latest
+    needs:
+      - semanticpr
+      - hooks
+      - test
     steps:
       - uses: actions/checkout@v4
-      - name: "Setup Env"
+      - name: Setup Env
         uses: ./.github/actions/setup-env
       - name: Compose up
         run: |
