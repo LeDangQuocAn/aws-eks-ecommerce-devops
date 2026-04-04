@@ -43,7 +43,7 @@ jobs:
         uses: ./.github/actions/setup-env
       - name: Lint
         run: |
-          yarn lint:pr
+          yarn nx affected --targets=lint --base origin/main
 
   test:
     name: Unit tests
