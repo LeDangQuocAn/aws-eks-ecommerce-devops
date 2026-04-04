@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    # Because this ci is still in testing phase, we will only trigger it on feat/* branches. We can remove this filter once the tests are stable
+    # Real image build and publish flow when changes land on main.
     branches:
       - "main"
   workflow_dispatch:

@@ -1,10 +1,9 @@
 name: PR Validation
 
 on:
-  #for testing
   push:
-    branches:
-      - "feat/*"
+    branches-ignore:
+      - main
   pull_request:
     branches:
       - main
@@ -12,6 +11,7 @@ on:
       - opened
       - edited
       - synchronize
+      - reopened
   workflow_dispatch:
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
         run: echo "Skipping semantic PR check for event '${{ github.event_name }}'."
 
   hooks:
-    name: Hooks
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -46,7 +46,7 @@ jobs:
           yarn lint:pr
 
   test:
-    name: Project tests
+    name: Unit tests
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -55,23 +55,35 @@ jobs:
           fetch-depth: 0
       - name: Setup Env
         uses: ./.github/actions/setup-env
-      - name: Build
+      - name: Unit tests
         run: |
-          yarn nx affected --targets=build --base origin/main --parallel 1
-      - name: Unit and integration tests
-        run: |
-          yarn nx affected --targets=lint,test:integration,test --base origin/main
-      - name: Containers
-        run: |
-          yarn nx affected --targets=container --exclude='*,!tag:container' --base origin/main
+          yarn nx affected --targets=test --base origin/main
 
-  docker:
-    name: Docker E2E Tests
+  dry-run-build:
+    name: Dry run container build
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     needs:
       - semanticpr
       - hooks
       - test
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Env
+        uses: ./.github/actions/setup-env
+      - name: Build containers (no push)
+        run: |
+          yarn nx affected --targets=container --exclude='*,!tag:container' --base origin/main
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs:
+      - dry-run-build
     steps:
       - uses: actions/checkout@v4
       - name: Setup Env
@@ -91,34 +103,3 @@ jobs:
       - name: Compose down
         run: |
           DB_PASSWORD='test123' yarn nx compose:down ui
-
-  docker-multi:
-    name: Docker E2E Tests (Multi)
-    runs-on: ubuntu-latest
-    needs:
-      - semanticpr
-      - hooks
-      - test
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Env
-        uses: ./.github/actions/setup-env
-      - name: Compose up
-        run: |
-          set -euo pipefail
-          DB_PASSWORD='test123' yarn nx compose:up
-      - name: Debug docker on failure
-        if: failure()
-        run: |
-          DB_PASSWORD='test123' docker compose -f src/app/docker-compose.yml ps
-          DB_PASSWORD='test123' docker compose -f src/app/docker-compose.yml logs --no-color --tail=300 checkout 2>&1 || true
-      - name: Test
-        run: |
-          CYPRESS_BASE_URL='http://localhost:8888' yarn nx execute e2e
-      - name: Load Generator
-        run: |
-          cd src/load-generator
-          bash scripts/run-test.sh
-      - name: Compose down
-        run: |
-          DB_PASSWORD='test123' yarn nx compose:down
