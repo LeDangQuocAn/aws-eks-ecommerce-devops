@@ -12,13 +12,22 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
   id-token: write
 
 jobs:
+  validate:
+    name: Validate
+    uses: ./.github/workflows/validate.yml
+
   build:
     name: Build Images
+    needs: validate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -59,7 +68,7 @@ jobs:
         env:
           TAG_NAME: ${{ steps.vars.outputs.version }}
           TARGET_ARCH: ${{ matrix.arch }}
-          AWS_ECR_REPOSITORY: ${{ secrets.AWS_ECR_REPOSITORY }}
+          AWS_ECR_REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
         run: |
           export IMAGE_TAG=${TAG_NAME#v}
 
@@ -105,7 +114,7 @@ jobs:
       - name: Push manifests and helm charts
         env:
           TAG_NAME: ${{ steps.vars.outputs.version }}
-          AWS_ECR_REPOSITORY: ${{ secrets.AWS_ECR_REPOSITORY }}
+          AWS_ECR_REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
         run: |
           export IMAGE_TAG=${TAG_NAME#v}
 

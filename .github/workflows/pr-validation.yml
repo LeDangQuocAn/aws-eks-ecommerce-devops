@@ -14,6 +14,10 @@ on:
       - reopened
   workflow_dispatch:
 
+concurrency:
+  group: pr-validation-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 permissions:
   pull-requests: read
 
@@ -31,41 +35,17 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "Skipping semantic PR check for event '${{ github.event_name }}'."
 
-  hooks:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Setup Env
-        uses: ./.github/actions/setup-env
-      - name: Lint
-        run: |
-          yarn nx affected --targets=lint --base origin/main
-
-  test:
-    name: Unit tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Setup Env
-        uses: ./.github/actions/setup-env
-      - name: Unit tests
-        run: |
-          yarn nx affected --targets=test --base origin/main
+  validate:
+    name: Validate
+    uses: ./.github/workflows/validate.yml
 
   dry-run-build:
     name: Dry run container build
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     needs:
       - semanticpr
-      - hooks
-      - test
+      - validate
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -80,6 +60,7 @@ jobs:
   e2e:
     name: E2E tests
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     needs:
       - dry-run-build
     steps:
