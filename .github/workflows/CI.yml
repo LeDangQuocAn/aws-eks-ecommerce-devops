@@ -4,7 +4,7 @@ on:
   push:
     # Real image build and publish flow when changes land on main.
     branches:
-      - "main"
+      - "feat/cicd-pipeline"
   workflow_dispatch:
     inputs:
       version:
