@@ -55,6 +55,24 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Ensure ECR repositories exist
+        env:
+          SERVICES_JSON: ${{ inputs.services_matrix }}
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r service; do
+            [ -z "$service" ] && continue
+            repository_name="ecommerce/${service}"
+
+            if aws ecr describe-repositories --repository-names "$repository_name" >/dev/null 2>&1; then
+              echo "ECR repository exists: $repository_name"
+            else
+              echo "Creating ECR repository: $repository_name"
+              aws ecr create-repository --repository-name "$repository_name" >/dev/null
+            fi
+          done < <(echo "$SERVICES_JSON" | jq -r '.[]')
+
       - name: Build and push changed images
         env:
           SERVICES_JSON: ${{ inputs.services_matrix }}
