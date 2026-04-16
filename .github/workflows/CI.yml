@@ -123,58 +123,10 @@ jobs:
       aws_ecr_repository: ${{ vars.AWS_ECR_REPOSITORY }}
     secrets: inherit
 
-  publish:
-    name: Publish
-    needs:
-      - build
-      - resolve-version
-      - detect-changes
-    if: needs.detect-changes.outputs.any_service_changed == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve-version.outputs.version }}
-      - name: "Setup Env"
-        uses: ./.github/actions/setup-env
-      - name: "Get AWS credentials"
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
-          role-session-name: GithubActionsSession
-
-      - name: "Login to Amazon ECR Private"
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Push manifests and helm charts
-        env:
-          TAG_NAME: ${{ needs.resolve-version.outputs.version }}
-          AWS_ECR_REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
-          SERVICES_JSON: ${{ needs.detect-changes.outputs.changed_services_matrix }}
-        run: |
-          set -euo pipefail
-
-          export IMAGE_TAG=${TAG_NAME#v}
-
-          while IFS= read -r service; do
-            [ -z "$service" ] && continue
-
-            if [ "$service" = "load-generator" ]; then
-              yarn nx manifest load-generator --repository="${AWS_ECR_REPOSITORY}/ecommerce/load-generator" --tag="load-gen.${IMAGE_TAG}"
-            else
-              yarn nx manifest "$service" --repository="${AWS_ECR_REPOSITORY}/ecommerce/${service}" --tag="${IMAGE_TAG}"
-            fi
-          done < <(echo "$SERVICES_JSON" | jq -r '.[]')
-
-          yarn nx run-many -t helm --projects=tag:service --remote oci://${AWS_ECR_REPOSITORY} --push
-
   handoff-gitops:
     name: Handoff To GitOps Main
     needs:
       - build
-      - publish
       - resolve-version
       - detect-changes
     if: needs.detect-changes.outputs.any_service_changed == 'true'
@@ -201,7 +153,7 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
           yq --version
 
-      - name: Update image tags and chart versions in GitOps repo
+      - name: Update image tags in GitOps repo
         env:
           SERVICES_JSON: ${{ needs.detect-changes.outputs.changed_services_matrix }}
           TAG_NAME: ${{ needs.resolve-version.outputs.version }}
@@ -222,15 +174,6 @@ jobs:
 
             export IMAGE_TAG
             yq -i '.image.tag = strenv(IMAGE_TAG)' "$values_file"
-
-            chart_yaml="src/${service}/chart/Chart.yaml"
-            if [ -f "$chart_yaml" ] && yq e 'has("chart") and (.chart | has("version"))' "$values_file" >/dev/null; then
-              CHART_VERSION="$(yq e '.version' "$chart_yaml")"
-              if [ "$CHART_VERSION" != "null" ] && [ -n "$CHART_VERSION" ]; then
-                export CHART_VERSION
-                yq -i '.chart.version = strenv(CHART_VERSION)' "$values_file"
-              fi
-            fi
 
             changed_any=true
             echo "Updated $values_file"
