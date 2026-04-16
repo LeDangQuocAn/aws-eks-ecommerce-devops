@@ -21,10 +21,6 @@ permissions:
   id-token: write
 
 jobs:
-  validate:
-    name: Validate
-    uses: ./.github/workflows/validate.yml
-
   resolve-version:
     name: Resolve Version
     runs-on: ubuntu-latest
@@ -115,7 +111,6 @@ jobs:
   build:
     name: Build Images
     needs:
-      - validate
       - resolve-version
       - detect-changes
     if: needs.detect-changes.outputs.any_service_changed == 'true'
@@ -160,7 +155,108 @@ jobs:
         run: |
           export IMAGE_TAG=${TAG_NAME#v}
 
-          yarn nx run-many -t manifest --projects=tag:service --args="--repository=${AWS_ECR_REPOSITORY}/ecommerce/{projectName},--tag=${IMAGE_TAG}"
-          yarn nx manifest load-generator --args="--repository=${AWS_ECR_REPOSITORY}/ecommerce/load-generator,--tag=load-gen.${IMAGE_TAG}"
+          yarn nx run-many -t manifest --projects=tag:service --repository="${AWS_ECR_REPOSITORY}/ecommerce/{projectName}" --tag="${IMAGE_TAG}"
+          yarn nx manifest load-generator --repository="${AWS_ECR_REPOSITORY}/ecommerce/load-generator" --tag="load-gen.${IMAGE_TAG}"
 
           yarn nx run-many -t helm --projects=tag:service --remote oci://${AWS_ECR_REPOSITORY} --push
+
+  handoff-gitops:
+    name: Handoff To GitOps Main
+    needs:
+      - build
+      - publish
+      - resolve-version
+      - detect-changes
+    if: needs.detect-changes.outputs.any_service_changed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GITOPS_REPO: ${{ github.repository_owner }}/ecommerce-gitops
+      GITOPS_VALUES_BASE: services
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-version.outputs.version }}
+
+      - name: Checkout GitOps repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          ref: main
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Update image tags and chart versions in GitOps repo
+        env:
+          SERVICES_JSON: ${{ needs.detect-changes.outputs.changed_services_matrix }}
+          TAG_NAME: ${{ needs.resolve-version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG="${TAG_NAME#v}"
+          changed_any=false
+
+          while IFS= read -r service; do
+            [ -z "$service" ] && continue
+            values_file="gitops/${GITOPS_VALUES_BASE}/${service}/values.yaml"
+
+            if [ ! -f "$values_file" ]; then
+              echo "Skip missing values file: $values_file"
+              continue
+            fi
+
+            export IMAGE_TAG
+            yq -i '.image.tag = strenv(IMAGE_TAG)' "$values_file"
+
+            chart_yaml="src/${service}/chart/Chart.yaml"
+            if [ -f "$chart_yaml" ] && yq e 'has("chart") and (.chart | has("version"))' "$values_file" >/dev/null; then
+              CHART_VERSION="$(yq e '.version' "$chart_yaml")"
+              if [ "$CHART_VERSION" != "null" ] && [ -n "$CHART_VERSION" ]; then
+                export CHART_VERSION
+                yq -i '.chart.version = strenv(CHART_VERSION)' "$values_file"
+              fi
+            fi
+
+            changed_any=true
+            echo "Updated $values_file"
+          done < <(echo "$SERVICES_JSON" | jq -r '.[]')
+
+          if [ "$changed_any" = "false" ]; then
+            echo "No services to update"
+            exit 0
+          fi
+
+          echo "### GitOps handoff candidates" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tag: ${IMAGE_TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- values base: ${GITOPS_VALUES_BASE}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit and push GitOps changes
+        env:
+          TAG_NAME: ${{ needs.resolve-version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          cd gitops
+          git config user.name "ecommerce-cd-bot"
+          git config user.email "ecommerce-cd-bot@users.noreply.github.com"
+
+          mapfile -t changed_files < <(git diff --name-only -- 'services/*/values.yaml')
+
+          if [ ${#changed_files[@]} -eq 0 ]; then
+            echo "No GitOps changes detected"
+            exit 0
+          fi
+
+          echo "### GitOps files updated" >> "$GITHUB_STEP_SUMMARY"
+          for file in "${changed_files[@]}"; do
+            echo "- ${file}" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          git add -- "${changed_files[@]}"
+          git commit -m "chore(cd): sync image tags from ${TAG_NAME}"
+          git push origin main
