@@ -1,7 +1,9 @@
 #!/bin/bash
 
-repository=$1
-tag=$2
+set -euo pipefail
+
+repository="${1:-}"
+tag="${2:-}"
 
 if [ -z "$repository" ]; then
   echo "Error: First argument must be repository"
@@ -13,18 +15,26 @@ if [ -z "$tag" ]; then
   exit 1
 fi
 
-set -euo pipefail
+target_manifest="${repository}:${tag}"
+arch_refs=()
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+if docker manifest inspect "${repository}:${tag}-amd64" >/dev/null 2>&1; then
+  arch_refs+=("${repository}:${tag}-amd64")
+else
+  echo "Info: Missing amd64 image tag ${repository}:${tag}-amd64"
+fi
 
-amd64_manifest=$(docker manifest inspect $repository:$tag-amd64)
-amd64_digest=$(echo $amd64_manifest | jq -r '.manifests[] | select(.platform.architecture == "amd64") | .digest')
+if docker manifest inspect "${repository}:${tag}-arm64" >/dev/null 2>&1; then
+  arch_refs+=("${repository}:${tag}-arm64")
+else
+  echo "Info: Missing arm64 image tag ${repository}:${tag}-arm64"
+fi
 
-arm64_manifest=$(docker manifest inspect $repository:$tag-arm64)
-arm64_digest=$(echo $arm64_manifest | jq -r '.manifests[] | select(.platform.architecture == "arm64") | .digest')
+if [ ${#arch_refs[@]} -eq 0 ]; then
+  echo "Error: No architecture images found for ${repository}:${tag}-amd64 or ${repository}:${tag}-arm64"
+  exit 1
+fi
 
-target_manifest="$repository:$tag"
-
-docker manifest create $target_manifest $repository@${amd64_digest} $repository@${arm64_digest}
-
-docker manifest push $target_manifest
+echo "Creating manifest ${target_manifest} from: ${arch_refs[*]}"
+docker manifest create "${target_manifest}" "${arch_refs[@]}"
+docker manifest push "${target_manifest}"
