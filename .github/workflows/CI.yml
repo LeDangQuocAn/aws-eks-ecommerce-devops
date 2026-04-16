@@ -152,11 +152,21 @@ jobs:
         env:
           TAG_NAME: ${{ needs.resolve-version.outputs.version }}
           AWS_ECR_REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
+          SERVICES_JSON: ${{ needs.detect-changes.outputs.changed_services_matrix }}
         run: |
+          set -euo pipefail
+
           export IMAGE_TAG=${TAG_NAME#v}
 
-          yarn nx run-many -t manifest --projects=tag:service --repository="${AWS_ECR_REPOSITORY}/ecommerce/{projectName}" --tag="${IMAGE_TAG}"
-          yarn nx manifest load-generator --repository="${AWS_ECR_REPOSITORY}/ecommerce/load-generator" --tag="load-gen.${IMAGE_TAG}"
+          while IFS= read -r service; do
+            [ -z "$service" ] && continue
+
+            if [ "$service" = "load-generator" ]; then
+              yarn nx manifest load-generator --repository="${AWS_ECR_REPOSITORY}/ecommerce/load-generator" --tag="load-gen.${IMAGE_TAG}"
+            else
+              yarn nx manifest "$service" --repository="${AWS_ECR_REPOSITORY}/ecommerce/${service}" --tag="${IMAGE_TAG}"
+            fi
+          done < <(echo "$SERVICES_JSON" | jq -r '.[]')
 
           yarn nx run-many -t helm --projects=tag:service --remote oci://${AWS_ECR_REPOSITORY} --push
 
