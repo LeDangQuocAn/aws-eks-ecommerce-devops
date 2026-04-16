@@ -4,7 +4,7 @@ on:
   push:
     # Real image build and publish flow when changes land on main.
     branches:
-      - "feat/cicd-pipeline"
+      - "main"
   workflow_dispatch:
     inputs:
       version:
@@ -14,7 +14,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
