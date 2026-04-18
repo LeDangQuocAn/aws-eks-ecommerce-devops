@@ -97,11 +97,11 @@ jobs:
           load_generator_changed=$(echo "$SERVICES_JSON" | jq -e 'index("load-generator") != null' >/dev/null && echo true || echo false)
 
           if [ -n "$service_projects" ]; then
-            yarn nx run-many -t container --projects "$service_projects" --tags ${AWS_ECR_REPOSITORY}/ecommerce/{projectName}:${IMAGE_TAG}-${TARGET_ARCH}
+            yarn nx run-many -t container --load true --projects "$service_projects" --tags ${AWS_ECR_REPOSITORY}/ecommerce/{projectName}:${IMAGE_TAG}-${TARGET_ARCH}
           fi
 
           if [ "$load_generator_changed" = "true" ]; then
-            yarn nx container load-generator --tags ${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}
+            yarn nx container load-generator --load true --tags ${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}
           fi
 
       - name: Scan changed images with Trivy
@@ -149,14 +149,15 @@ jobs:
 
           IMAGE_TAG=${TAG_NAME#v}
 
-          # Keep existing tag conventions while building only changed projects.
-          service_projects=$(echo "$SERVICES_JSON" | jq -r '.[] | select(. != "load-generator")' | paste -sd, -)
-          load_generator_changed=$(echo "$SERVICES_JSON" | jq -e 'index("load-generator") != null' >/dev/null && echo true || echo false)
+          while IFS= read -r service; do
+            [ -z "$service" ] && continue
 
-          if [ -n "$service_projects" ]; then
-            yarn nx run-many -t container --push true --projects "$service_projects" --tags ${AWS_ECR_REPOSITORY}/ecommerce/{projectName}:${IMAGE_TAG}-${TARGET_ARCH}
-          fi
+            if [ "$service" = "load-generator" ]; then
+              image_ref="${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}"
+            else
+              image_ref="${AWS_ECR_REPOSITORY}/ecommerce/${service}:${IMAGE_TAG}-${TARGET_ARCH}"
+            fi
 
-          if [ "$load_generator_changed" = "true" ]; then
-            yarn nx container load-generator --push true --tags ${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}
-          fi
+            echo "Pushing ${image_ref}"
+            docker push "$image_ref"
+          done < <(echo "$SERVICES_JSON" | jq -r '.[]')
