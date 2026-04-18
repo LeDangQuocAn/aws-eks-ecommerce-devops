@@ -25,6 +25,11 @@ on:
         description: "Base ECR repository endpoint"
         required: true
         type: string
+      push_to_ecr:
+        description: "Whether to push built images to ECR after scan"
+        required: false
+        default: true
+        type: boolean
     secrets:
       AWS_ROLE_ARN:
         required: true
@@ -45,6 +50,7 @@ jobs:
         uses: ./.github/actions/setup-env
 
       - name: Configure AWS credentials
+        if: ${{ inputs.push_to_ecr }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
@@ -52,10 +58,12 @@ jobs:
           role-session-name: GithubActionsSession
 
       - name: Login to Amazon ECR Private
+        if: ${{ inputs.push_to_ecr }}
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Ensure ECR repositories exist
+        if: ${{ inputs.push_to_ecr }}
         env:
           SERVICES_JSON: ${{ inputs.services_matrix }}
         run: |
@@ -73,7 +81,7 @@ jobs:
             fi
           done < <(echo "$SERVICES_JSON" | jq -r '.[]')
 
-      - name: Build and push changed images
+      - name: Build changed images
         env:
           SERVICES_JSON: ${{ inputs.services_matrix }}
           TAG_NAME: ${{ inputs.version }}
@@ -95,6 +103,55 @@ jobs:
           if [ "$load_generator_changed" = "true" ]; then
             yarn nx container load-generator --tags ${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}
           fi
+
+      - name: Scan changed images with Trivy
+        env:
+          SERVICES_JSON: ${{ inputs.services_matrix }}
+          TAG_NAME: ${{ inputs.version }}
+          TARGET_ARCH: ${{ inputs.target_arch }}
+          AWS_ECR_REPOSITORY: ${{ inputs.aws_ecr_repository }}
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG=${TAG_NAME#v}
+
+          while IFS= read -r service; do
+            [ -z "$service" ] && continue
+
+            if [ "$service" = "load-generator" ]; then
+              image_ref="${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}"
+            else
+              image_ref="${AWS_ECR_REPOSITORY}/ecommerce/${service}:${IMAGE_TAG}-${TARGET_ARCH}"
+            fi
+
+            echo "Scanning ${image_ref}"
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$HOME/.cache/trivy:/root/.cache/" \
+              aquasec/trivy:0.63.0 image \
+              --scanners vuln \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --no-progress \
+              --exit-code 1 \
+              "$image_ref"
+          done < <(echo "$SERVICES_JSON" | jq -r '.[]')
+
+      - name: Push changed images
+        if: ${{ inputs.push_to_ecr }}
+        env:
+          SERVICES_JSON: ${{ inputs.services_matrix }}
+          TAG_NAME: ${{ inputs.version }}
+          TARGET_ARCH: ${{ inputs.target_arch }}
+          AWS_ECR_REPOSITORY: ${{ inputs.aws_ecr_repository }}
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG=${TAG_NAME#v}
+
+          # Keep existing tag conventions while building only changed projects.
+          service_projects=$(echo "$SERVICES_JSON" | jq -r '.[] | select(. != "load-generator")' | paste -sd, -)
+          load_generator_changed=$(echo "$SERVICES_JSON" | jq -e 'index("load-generator") != null' >/dev/null && echo true || echo false)
 
           if [ -n "$service_projects" ]; then
             yarn nx run-many -t container --push true --projects "$service_projects" --tags ${AWS_ECR_REPOSITORY}/ecommerce/{projectName}:${IMAGE_TAG}-${TARGET_ARCH}
