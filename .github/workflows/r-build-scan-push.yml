@@ -36,8 +36,12 @@ on:
 
 jobs:
   build-and-push:
-    name: Build and Push Images
+    name: Build, Scan, and Push Images
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(inputs.services_matrix) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,31 +63,25 @@ jobs:
 
       - name: Login to Amazon ECR Private
         if: ${{ inputs.push_to_ecr }}
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Ensure ECR repositories exist
         if: ${{ inputs.push_to_ecr }}
-        env:
-          SERVICES_JSON: ${{ inputs.services_matrix }}
         run: |
           set -euo pipefail
 
-          while IFS= read -r service; do
-            [ -z "$service" ] && continue
-            repository_name="ecommerce/${service}"
+          repository_name="ecommerce/${{ matrix.service }}"
 
-            if aws ecr describe-repositories --repository-names "$repository_name" >/dev/null 2>&1; then
-              echo "ECR repository exists: $repository_name"
-            else
-              echo "Creating ECR repository: $repository_name"
-              aws ecr create-repository --repository-name "$repository_name" >/dev/null
-            fi
-          done < <(echo "$SERVICES_JSON" | jq -r '.[]')
+          if aws ecr describe-repositories --repository-names "$repository_name" >/dev/null 2>&1; then
+            echo "ECR repository exists: $repository_name"
+          else
+            echo "Creating ECR repository: $repository_name"
+            aws ecr create-repository --repository-name "$repository_name" >/dev/null
+          fi
 
-      - name: Build changed images
+      - name: Build image for Trivy scan
+        id: build-image
         env:
-          SERVICES_JSON: ${{ inputs.services_matrix }}
           TAG_NAME: ${{ inputs.version }}
           TARGET_ARCH: ${{ inputs.target_arch }}
           AWS_ECR_REPOSITORY: ${{ inputs.aws_ecr_repository }}
@@ -91,73 +89,30 @@ jobs:
           set -euo pipefail
 
           IMAGE_TAG=${TAG_NAME#v}
-
-          # Keep existing tag conventions while building only changed projects.
-          service_projects=$(echo "$SERVICES_JSON" | jq -r '.[] | select(. != "load-generator")' | paste -sd, -)
-          load_generator_changed=$(echo "$SERVICES_JSON" | jq -e 'index("load-generator") != null' >/dev/null && echo true || echo false)
-
-          if [ -n "$service_projects" ]; then
-            yarn nx run-many -t container --load true --projects "$service_projects" --tags ${AWS_ECR_REPOSITORY}/ecommerce/{projectName}:${IMAGE_TAG}-${TARGET_ARCH}
+          if [ "${{ matrix.service }}" = "load-generator" ]; then
+            image_ref="${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}"
+            yarn nx container load-generator --load true --tags "$image_ref"
+          else
+            image_ref="${AWS_ECR_REPOSITORY}/ecommerce/${{ matrix.service }}:${IMAGE_TAG}-${TARGET_ARCH}"
+            yarn nx container "${{ matrix.service }}" --load true --tags "$image_ref"
           fi
 
-          if [ "$load_generator_changed" = "true" ]; then
-            yarn nx container load-generator --load true --tags ${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}
-          fi
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
 
-      - name: Scan changed images with Trivy
-        env:
-          SERVICES_JSON: ${{ inputs.services_matrix }}
-          TAG_NAME: ${{ inputs.version }}
-          TARGET_ARCH: ${{ inputs.target_arch }}
-          AWS_ECR_REPOSITORY: ${{ inputs.aws_ecr_repository }}
-        run: |
-          set -euo pipefail
-
-          IMAGE_TAG=${TAG_NAME#v}
-
-          while IFS= read -r service; do
-            [ -z "$service" ] && continue
-
-            if [ "$service" = "load-generator" ]; then
-              image_ref="${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}"
-            else
-              image_ref="${AWS_ECR_REPOSITORY}/ecommerce/${service}:${IMAGE_TAG}-${TARGET_ARCH}"
-            fi
-
-            echo "Scanning ${image_ref}"
-            docker run --rm \
-              -v /var/run/docker.sock:/var/run/docker.sock \
-              -v "$HOME/.cache/trivy:/root/.cache/" \
-              aquasec/trivy:0.63.0 image \
-              --scanners vuln \
-              --severity HIGH,CRITICAL \
-              --ignore-unfixed \
-              --no-progress \
-              --exit-code 1 \
-              "$image_ref"
-          done < <(echo "$SERVICES_JSON" | jq -r '.[]')
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.build-image.outputs.image_ref }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
 
       - name: Push changed images
         if: ${{ inputs.push_to_ecr }}
-        env:
-          SERVICES_JSON: ${{ inputs.services_matrix }}
-          TAG_NAME: ${{ inputs.version }}
-          TARGET_ARCH: ${{ inputs.target_arch }}
-          AWS_ECR_REPOSITORY: ${{ inputs.aws_ecr_repository }}
         run: |
           set -euo pipefail
 
-          IMAGE_TAG=${TAG_NAME#v}
-
-          while IFS= read -r service; do
-            [ -z "$service" ] && continue
-
-            if [ "$service" = "load-generator" ]; then
-              image_ref="${AWS_ECR_REPOSITORY}/ecommerce/load-generator:load-gen.${IMAGE_TAG}-${TARGET_ARCH}"
-            else
-              image_ref="${AWS_ECR_REPOSITORY}/ecommerce/${service}:${IMAGE_TAG}-${TARGET_ARCH}"
-            fi
-
-            echo "Pushing ${image_ref}"
-            docker push "$image_ref"
-          done < <(echo "$SERVICES_JSON" | jq -r '.[]')
+          echo "Pushing ${{ steps.build-image.outputs.image_ref }}"
+          docker push "${{ steps.build-image.outputs.image_ref }}"
