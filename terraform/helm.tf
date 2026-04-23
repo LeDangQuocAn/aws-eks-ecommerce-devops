@@ -90,3 +90,31 @@ resource "helm_release" "cluster_autoscaler" {
 
   depends_on = [module.eks]
 }
+
+# ─── Kube Prometheus Stack ──────────────────────────────────────────────────
+# Triển khai Prometheus và Grafana để giám sát hạ tầng K8s
+resource "helm_release" "kube_prometheus_stack" {
+  name             = "prometheus"
+  repository       = "https://prometheus-community.github.io/helm-charts"
+  chart            = "kube-prometheus-stack"
+  namespace        = "monitoring"
+  create_namespace = true
+  version          = "58.1.0"
+
+  # Thiết lập mật khẩu mặc định cho Grafana
+  set {
+    name  = "grafana.adminPassword"
+    value = "admin123"
+  }
+
+  # Vì bạn đã cài aws-load-balancer-controller, bạn có thể expose Grafana 
+  # ra ngoài bằng LoadBalancer để truy cập UI dễ dàng.
+  set {
+    name  = "grafana.service.type"
+    value = "LoadBalancer"
+  }
+
+  # Đảm bảo EKS phải được tạo xong trước khi cài chart này
+  depends_on = [module.eks]
+}
+

@@ -95,6 +95,7 @@ module "root_oidc_iam_role" {
   role_name                  = var.root_oidc_iam_role_name
   oidc_provider_arn          = module.eks.oidc_provider_arn
   namespace_service_accounts = var.root_oidc_namespace_service_accounts
+  attach_ecr_create_policy   = true
 
   tags = local.common_tags
 }

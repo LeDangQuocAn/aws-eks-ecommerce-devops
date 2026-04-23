@@ -37,6 +37,12 @@ variable "cluster_autoscaler_cluster_names" {
   default     = []
 }
 
+variable "attach_ecr_create_policy" {
+  description = "Attach a policy that allows creating and configuring ECR repositories."
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Tags applied to IAM role resources."
   type        = map(string)

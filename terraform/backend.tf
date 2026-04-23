@@ -1,7 +1,9 @@
 terraform {
-  cloud {
+  required_version = "1.14.8"
 
-    organization = "andrewdq"
+  cloud {
+    
+    organization = "NT548_"
 
     workspaces {
       name = "NT548"
