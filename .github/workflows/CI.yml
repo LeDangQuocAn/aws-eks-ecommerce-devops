@@ -5,7 +5,6 @@ on:
     # Real image build and publish flow when changes land on main.
     branches:
       - "main"
-      - "feat/cicd-pipeline"
   workflow_dispatch:
     inputs:
       version:
@@ -122,7 +121,7 @@ jobs:
       target_arch: amd64
       aws_region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
       aws_ecr_repository: ${{ vars.AWS_ECR_REPOSITORY }}
-      push_to_ecr: ${{ github.ref != 'refs/heads/feat/cicd-pipeline' }}
+      push_to_ecr: true
     secrets: inherit
 
   handoff-gitops:
