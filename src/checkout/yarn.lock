@@ -7865,8 +7865,8 @@ __metadata:
   linkType: hard
 
 "multer@npm:2.0.1":
-  version: 2.1.1
-  resolution: "multer@npm:2.1.1"
+  version: 2.0.1
+  resolution: "multer@npm:2.0.1"
   dependencies:
     append-field: "npm:^1.0.0"
     busboy: "npm:^1.6.0"
@@ -9396,8 +9396,8 @@ __metadata:
   linkType: hard
 
 "systeminformation@npm:5.23.8":
-  version: 5.31.0
-  resolution: "systeminformation@npm:5.31.0"
+  version: 5.23.8
+  resolution: "systeminformation@npm:5.23.8"
   bin:
     systeminformation: lib/cli.js
   checksum: 10c0/da8c581f97e66ba7c8d1640977d618c6eacf375ea0847b674e1b6b94f9b3c5a11f44c0c2d9dfa7089e1132b9a8fa8e5332278ee72ae23e324cc3df183788815a
