@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.38.0 (a8f5d1cbd)
+  labels:
+    io.kompose.service: catalog-db
+  name: catalog-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: catalog-db
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.38.0 (a8f5d1cbd)
+      labels:
+        io.kompose.service: catalog-db
+    spec:
+      containers:
+        - env:
+            - name: MYSQL_ALLOW_EMPTY_PASSWORD
+              value: "false"
+            - name: MYSQL_DATABASE
+              value: catalogdb
+            - name: MYSQL_PASSWORD
+              value: "password"
+            - name: MYSQL_ROOT_PASSWORD
+              value: "password"
+            - name: MYSQL_USER
+              value: catalog_user
+            - name: reschedule
+              value: on-node-failure
+          image: mariadb:10.9
+          livenessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+                - -h
+                - localhost
+                - -u
+                - catalog_user
+                - -ppassword
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: catalog-db
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 200m
+      hostname: catalog-db
+      restartPolicy: Always

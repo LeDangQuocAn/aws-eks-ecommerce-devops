@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.38.0 (a8f5d1cbd)
+  labels:
+    io.kompose.service: orders-db
+  name: orders-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: orders-db
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.38.0 (a8f5d1cbd)
+      labels:
+        io.kompose.service: orders-db
+    spec:
+      containers:
+        - env:
+            - name: POSTGRES_DB
+              value: orders
+            - name: POSTGRES_PASSWORD
+              value: "password"
+            - name: POSTGRES_USER
+              value: orders_user
+          image: postgres:16.1
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -d
+                - orders
+                - -U
+                - orders_user
+            failureThreshold: 30
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: orders-db
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 200m
+      hostname: orders-db
+      restartPolicy: Always
