@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.38.0 (a8f5d1cbd)
+  labels:
+    io.kompose.service: rabbitmq
+  name: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: rabbitmq
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.38.0 (a8f5d1cbd)
+      labels:
+        io.kompose.service: rabbitmq
+    spec:
+      containers:
+        - env:
+            - name: RABBITMQ_DEFAULT_PASS
+              value: "password"
+            - name: RABBITMQ_DEFAULT_USER
+              value: rabbitmq
+          image: rabbitmq:3-management
+          livenessProbe:
+            tcpSocket:
+              port: 5672
+            failureThreshold: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 5672
+            failureThreshold: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+          startupProbe:
+            tcpSocket:
+              port: 5672
+            failureThreshold: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: rabbitmq
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 200m
+      hostname: rabbitmq
+      restartPolicy: Always

@@ -1,0 +1,132 @@
+# Internal ClusterIP Services for all backend components
+---
+# "carts" is the DNS name the UI expects (RETAIL_UI_ENDPOINTS_CARTS=http://carts:8080)
+# Selects pods from the "cart" Deployment (label: io.kompose.service: cart)
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: carts
+  name: carts
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    io.kompose.service: cart
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: carts-db
+  name: carts-db
+spec:
+  ports:
+    - name: dynamodb
+      port: 8000
+      targetPort: 8000
+  selector:
+    io.kompose.service: carts-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: catalog
+  name: catalog
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    io.kompose.service: catalog
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: catalog-db
+  name: catalog-db
+spec:
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+  selector:
+    io.kompose.service: catalog-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: checkout
+  name: checkout
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    io.kompose.service: checkout
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: checkout-redis
+  name: checkout-redis
+spec:
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+  selector:
+    io.kompose.service: checkout-redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: orders
+  name: orders
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  selector:
+    io.kompose.service: orders
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: orders-db
+  name: orders-db
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+  selector:
+    io.kompose.service: orders-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: rabbitmq
+  name: rabbitmq
+spec:
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+  selector:
+    io.kompose.service: rabbitmq

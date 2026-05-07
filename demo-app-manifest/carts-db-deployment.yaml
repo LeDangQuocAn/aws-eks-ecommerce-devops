@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.38.0 (a8f5d1cbd)
+  labels:
+    io.kompose.service: carts-db
+  name: carts-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: carts-db
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.38.0 (a8f5d1cbd)
+      labels:
+        io.kompose.service: carts-db
+    spec:
+      containers:
+        - image: amazon/dynamodb-local:1.20.0
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exit 0
+            failureThreshold: 3
+            periodSeconds: 5
+            timeoutSeconds: 15
+          name: carts-db
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 200m
+          securityContext:
+            capabilities:
+              add:
+                - CHOWN
+                - SETGID
+                - SETUID
+              drop:
+                - all
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: carts-db-tmpfs0
+      hostname: carts-db
+      restartPolicy: Always
+      volumes:
+        - emptyDir:
+            medium: Memory
+          name: carts-db-tmpfs0
