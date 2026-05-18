@@ -130,6 +130,16 @@ resource "helm_release" "kube_prometheus_stack" {
     value = "true"
   }
 
+  set {
+    name  = "grafana.adminPassword"
+    value = "admin"
+  }
+
+  set {
+    name  = "grafana.adminUser"
+    value = "admin"
+  }
+
   # Keep the deployment tied to cluster creation
   depends_on = [module.eks]
 }
