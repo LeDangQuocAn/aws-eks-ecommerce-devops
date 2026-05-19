@@ -38,7 +38,7 @@ variable "eks_cluster_version" {
 variable "node_instance_type" {
   description = "EC2 instance type for worker nodes"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.micro"
 }
 
 variable "node_min_size" {
@@ -56,7 +56,7 @@ variable "node_max_size" {
 variable "node_desired_size" {
   description = "Initial desired node count per node group"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 # ECR
