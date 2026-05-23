@@ -143,3 +143,60 @@ resource "helm_release" "kube_prometheus_stack" {
   # Keep the deployment tied to cluster creation
   depends_on = [module.eks]
 }
+
+# ─── ELK Stack (Elasticsearch + Kibana + Logstash) ──────────────────────────
+# Managed through the Terraform Helm provider so the release lifecycle stays in
+# the same state as the rest of the cluster add-ons.
+
+resource "kubernetes_namespace" "logging" {
+  metadata {
+    name = "logging"
+    labels = {
+      name = "logging"
+    }
+  }
+
+  depends_on = [module.eks]
+}
+
+resource "helm_release" "elasticsearch" {
+  name             = "elasticsearch"
+  repository       = "https://helm.elastic.co"
+  chart            = "elasticsearch"
+  namespace        = kubernetes_namespace.logging.metadata[0].name
+  create_namespace = false
+  timeout          = 1200
+  atomic           = true
+
+  values = [file("${path.module}/elk-values/elasticsearch-values.yaml")]
+
+  depends_on = [kubernetes_namespace.logging]
+}
+
+resource "helm_release" "kibana" {
+  name             = "kibana"
+  repository       = "https://helm.elastic.co"
+  chart            = "kibana"
+  namespace        = kubernetes_namespace.logging.metadata[0].name
+  create_namespace = false
+  timeout          = 600
+  atomic           = true
+
+  values = [file("${path.module}/elk-values/kibana-values.yaml")]
+
+  depends_on = [helm_release.elasticsearch]
+}
+
+resource "helm_release" "logstash" {
+  name             = "logstash"
+  repository       = "https://helm.elastic.co"
+  chart            = "logstash"
+  namespace        = kubernetes_namespace.logging.metadata[0].name
+  create_namespace = false
+  timeout          = 600
+  atomic           = true
+
+  values = [file("${path.module}/elk-values/logstash-values.yaml")]
+
+  depends_on = [helm_release.elasticsearch]
+}
