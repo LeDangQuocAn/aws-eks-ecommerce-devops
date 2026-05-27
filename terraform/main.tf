@@ -9,7 +9,25 @@ locals {
     },
     var.tags
   )
+
+  eks_admin_access_entries = var.eks_admin_role_arn == "" ? {} : {
+    terraform_admin = {
+      principal_arn = var.eks_admin_role_arn
+
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
 }
+
+data "aws_caller_identity" "current" {}
 
 # ─── VPC ─────────────────────────────────────────────────────────────────────
 # Two public subnets (Load Balancer facing) and two private subnets
@@ -53,12 +71,11 @@ module "eks" {
   private_subnet_ids = module.vpc.output_private_subnets
   public_subnet_ids  = module.vpc.output_public_subnets
 
-  node_instance_type = var.node_instance_type
-  node_min_size      = var.node_min_size
-  node_max_size      = var.node_max_size
-  node_desired_size  = var.node_desired_size
-
   tags = local.common_tags
+
+  access_entries = local.eks_admin_access_entries
+
+  enable_cluster_creator_admin_permissions = var.eks_admin_role_arn == ""
 }
 
 # Optional root-level OIDC IAM role (IRSA) for app workloads.

@@ -1,0 +1,17 @@
+replicaCount: 1
+
+# Use a distinct fullname so failed hook resources from previous installs do not collide.
+fullnameOverride: kibana-app
+
+elasticsearchHosts: "https://elasticsearch-master:9200"
+
+service:
+  type: ClusterIP
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi

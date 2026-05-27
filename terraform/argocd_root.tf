@@ -4,9 +4,6 @@
 # - Attaches the ECR read policy to the created role
 # - Calls modules/argocd to install ArgoCD and create repo secrets
 
-# Get current AWS caller identity
-data "aws_caller_identity" "current" {}
-
 # ECR read policy for ArgoCD repo server
 resource "aws_iam_policy" "argocd_ecr_read" {
   count       = var.enable_argocd_repo_server_irsa && var.argocd_repo_server_ecr_read_policy ? 1 : 0

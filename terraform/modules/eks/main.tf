@@ -21,7 +21,9 @@ module "eks" {
 
   enable_irsa = true
 
-  enable_cluster_creator_admin_permissions = true
+  access_entries = var.access_entries
+
+  enable_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
 
   # ── Core EKS managed add-ons ───────────────────────────────────────────────
   # vpc-cni  : Pod networking (must be before compute so nodes get ENIs before pods)

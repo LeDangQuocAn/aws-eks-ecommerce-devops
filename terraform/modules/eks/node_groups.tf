@@ -11,14 +11,14 @@ locals {
     # Worker nodes in Availability Zone 1
     ng_az1 = {
       name           = "${var.cluster_name}-ng-az1"
-      instance_types = [var.node_instance_type]
+      instance_types = [var.node_group_instance_type]
 
       # Pin this node group to the first private subnet (AZ 1)
       subnet_ids = [var.private_subnet_ids[0]]
 
-      min_size     = var.node_min_size
-      max_size     = var.node_max_size
-      desired_size = var.node_desired_size
+      min_size     = var.node_group_az1_min_size
+      max_size     = var.node_group_az1_max_size
+      desired_size = var.node_group_az1_desired_size
 
       # Node OS – Amazon Linux 2023 is the default for EKS 1.30+
       ami_type = "AL2023_x86_64_STANDARD"
@@ -38,14 +38,14 @@ locals {
     # Worker nodes in Availability Zone 2
     ng_az2 = {
       name           = "${var.cluster_name}-ng-az2"
-      instance_types = [var.node_instance_type]
+      instance_types = [var.node_group_instance_type]
 
       # Pin this node group to the second private subnet (AZ 2)
       subnet_ids = [var.private_subnet_ids[1]]
 
-      min_size     = var.node_min_size
-      max_size     = var.node_max_size
-      desired_size = var.node_desired_size
+      min_size     = var.node_group_az2_min_size
+      max_size     = var.node_group_az2_max_size
+      desired_size = var.node_group_az2_desired_size
 
       ami_type = "AL2023_x86_64_STANDARD"
 

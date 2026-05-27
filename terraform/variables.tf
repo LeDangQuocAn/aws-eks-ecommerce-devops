@@ -1,3 +1,23 @@
+variable "AWS_ACCESS_KEY_ID" {
+  description = "AWS access key ID. Set via HCP environment variable or workspace variable."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "AWS_SECRET_ACCESS_KEY" {
+  description = "AWS secret access key. Set via HCP environment variable or workspace variable."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "eks_admin_role_arn" {
+  description = "IAM role ARN to grant cluster-admin access through an EKS access entry. Leave empty to keep the current cluster-creator-based behavior."
+  type        = string
+  default     = "arn:aws:iam::341796273495:user/Plat"
+}
+
 variable "aws_region" {
   description = "AWS region where all resources will be deployed"
   type        = string
@@ -35,28 +55,40 @@ variable "eks_cluster_version" {
   default     = "1.34"
 }
 
-variable "node_instance_type" {
-  description = "EC2 instance type for worker nodes"
-  type        = string
-  default     = "t3.micro"
-}
-
-variable "node_min_size" {
-  description = "Minimum nodes per node group"
+variable "node_group_az1_min_size" {
+  description = "Minimum nodes for AZ1 node group"
   type        = number
   default     = 1
 }
 
-variable "node_max_size" {
-  description = "Maximum nodes per node group (Cluster Autoscaler ceiling)"
+variable "node_group_az2_min_size" {
+  description = "Minimum nodes for AZ2 node group"
+  type        = number
+  default     = 0
+}
+
+variable "node_group_az1_max_size" {
+  description = "Maximum nodes for AZ1 node group"
+  type        = number
+  default     = 10
+}
+
+variable "node_group_az2_max_size" {
+  description = "Maximum nodes for AZ2 node group"
   type        = number
   default     = 6
 }
 
-variable "node_desired_size" {
-  description = "Initial desired node count per node group"
+variable "node_group_az1_desired_size" {
+  description = "Desired nodes for AZ1 node group"
   type        = number
-  default     = 1
+  default     = 8
+}
+
+variable "node_group_az2_desired_size" {
+  description = "Desired nodes for AZ2 node group"
+  type        = number
+  default     = 0
 }
 
 # ECR

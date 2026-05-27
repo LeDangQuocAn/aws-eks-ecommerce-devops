@@ -1,0 +1,27 @@
+replicas: 1
+minimumMasterNodes: 1
+
+esConfig:
+  elasticsearch.yml: |
+    xpack.ml.enabled: false
+
+# Persistence settings (some chart versions expect `persistence` keys)
+persistence:
+  enabled: true
+  storageClass: gp2
+  size: 30Gi
+
+volumeClaimTemplate:
+  storageClassName: gp2
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 30Gi
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 1
+    memory: 2Gi
