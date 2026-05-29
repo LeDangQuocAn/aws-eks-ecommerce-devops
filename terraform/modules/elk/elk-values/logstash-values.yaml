@@ -1,9 +1,33 @@
 replicaCount: 1
 
+service:
+  type: ClusterIP
+  ports:
+    - name: beats
+      port: 5000
+      targetPort: 5000
+
+extraEnvs:
+  - name: ELASTIC_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-master-credentials
+        key: password
+
+logstashJavaOpts: "-Xms512m -Xmx512m"
+
 logstashPipeline:
   logstash.conf: |
-    input { tcp { port => 5000 } }
-    output { elasticsearch { hosts => ["http://elasticsearch-master:9200"] } }
+    input { tcp { port => 5000 codec => json_lines } }
+    output {
+      elasticsearch {
+        hosts => ["https://elasticsearch-master:9200"]
+        user => "elastic"
+        password => "${ELASTIC_PASSWORD}"
+        ssl => true
+        ssl_certificate_verification => false
+      }
+    }
 
 resources:
   requests:
@@ -11,4 +35,4 @@ resources:
     memory: 256Mi
   limits:
     cpu: 500m
-    memory: 1Gi
+    memory: 768Mi
